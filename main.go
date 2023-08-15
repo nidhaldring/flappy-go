@@ -2,42 +2,63 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/gdamore/tcell"
 )
 
-func main() {
+var DefStyle = tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorWhite)
+
+func InitScreen() (tcell.Screen, error) {
 	s, err := tcell.NewScreen()
 	if err != nil {
 		log.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
 	if err := s.Init(); err != nil {
 		log.Fatal(err.Error())
-		return
+		return nil, err
 	}
 
-	defStyle := tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorWhite)
-	s.SetStyle(defStyle)
+	s.SetStyle(DefStyle)
+	return s, nil
+}
 
-	loop := true
-	for loop {
-		s.Clear()
-		s.SetContent(20, 22, 'A', nil, defStyle)
-		s.SetContent(20, 25, 'B', nil, defStyle)
-		s.SetContent(20, 26, 'C', nil, defStyle)
-		s.SetContent(20, 28, 'D', nil, defStyle)
-		s.Show()
-
+func OnEvents(s tcell.Screen, mainLoop chan<- bool) {
+	for {
 		ev := s.PollEvent()
 		switch ev := ev.(type) {
 		case *tcell.EventKey:
 			if ev.Key() == tcell.KeyEscape || ev.Rune() == 'q' {
-				s.Fini()
-				loop = false
+				mainLoop <- true
+			} else if ev.Key() == tcell.KeyUp {
+				MakeBirdJump()
 			}
 		}
 	}
+}
 
+func DrawingLoop(s tcell.Screen, mainLoopHasEnded <-chan bool) {
+	for {
+		s.Clear()
+		DrawBird(s)
+		s.Show()
+	}
+}
+
+func main() {
+	s, err := InitScreen()
+	if err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
+	defer s.Fini()
+
+	mainLoopHasEnded := make(chan bool)
+
+	go OnEvents(s, mainLoopHasEnded)
+	go DrawingLoop(s, mainLoopHasEnded)
+
+	<-mainLoopHasEnded
 }
